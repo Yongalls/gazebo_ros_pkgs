@@ -39,6 +39,7 @@ GZ_REGISTER_SENSOR_PLUGIN(GazeboRosCamera)
 // Constructor
 GazeboRosCamera::GazeboRosCamera()
 {
+  std::cout << "\n\n\n\n HELLO!!!!!!!!!!!!! \n\n\n\n" << std::endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

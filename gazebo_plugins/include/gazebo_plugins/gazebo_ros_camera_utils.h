@@ -49,6 +49,7 @@
 #include <gazebo/sensors/SensorTypes.hh>
 #include <gazebo/plugins/CameraPlugin.hh>
 #include <gazebo_plugins/gazebo_ros_utils.h>
+#include "gazebo_navigation/Zoom.h"
 
 namespace gazebo
 {

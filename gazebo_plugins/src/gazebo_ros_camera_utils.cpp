@@ -21,6 +21,7 @@
 #include <boost/thread/thread.hpp>
 #include <boost/bind.hpp>
 
+#include <ros/ros.h>
 #include <tf/tf.h>
 #include <tf/transform_listener.h>
 #include <sensor_msgs/Image.h>
@@ -42,6 +43,7 @@
 #include <gazebo/rendering/Distortion.hh>
 
 #include "gazebo_plugins/gazebo_ros_camera_utils.h"
+#include "gazebo_navigation/Zoom.h"
 
 namespace gazebo
 {
@@ -57,6 +59,17 @@ GazeboRosCameraUtils::GazeboRosCameraUtils()
   this->format_ = "";
   this->initialized_ = false;
 }
+
+/*
+void GazeboRosCameraUtils::zoomCallback(const std_msgs::Float64::ConstPtr& msg) 
+{
+  ROS_INFO("recieve msg");
+ // if (this->width_ == 0){
+ //   ROS_INFO("ERROR");
+ // }
+ // this->focal_length_ = ((this->width_)) / (2.0 * tan(msg.hfov / 2.0));
+}
+*/
 
 void GazeboRosCameraUtils::configCallback(
   gazebo_plugins::GazeboRosCameraConfig &config, uint32_t level)
@@ -179,7 +192,6 @@ void GazeboRosCameraUtils::Load(sensors::SensorPtr _parent,
   }
   else
     this->cy_ = this->sdf->Get<double>("Cy");
-
   if (!this->sdf->HasElement("focalLength"))
   {
     ROS_DEBUG_NAMED("camera_utils", "Camera plugin missing <focalLength>, defaults to 0");
@@ -187,7 +199,6 @@ void GazeboRosCameraUtils::Load(sensors::SensorPtr _parent,
   }
   else
     this->focal_length_ = this->sdf->Get<double>("focalLength");
-
   if (!this->sdf->HasElement("hackBaseline"))
   {
     ROS_DEBUG_NAMED("camera_utils", "Camera plugin missing <hackBaseline>, defaults to 0");
@@ -293,6 +304,8 @@ void GazeboRosCameraUtils::LoadThread()
 
   this->itnode_ = new image_transport::ImageTransport(*this->rosnode_);
 
+  //this->zoomSubscriber_ = this->rosnode_->subscribe("zoom", 100, GazeboRosCameraUtils::zoomCallback);
+
   // resolve tf prefix
   this->tf_prefix_ = tf::getPrefixParam(*this->rosnode_);
   if(this->tf_prefix_.empty()) {
@@ -343,7 +356,6 @@ void GazeboRosCameraUtils::LoadThread()
     ros::VoidPtr(), &this->camera_queue_);
   this->camera_info_pub_ = this->rosnode_->advertise(cio);
 
-  /* disabling fov and rate setting for each camera
   ros::SubscribeOptions zoom_so =
     ros::SubscribeOptions::create<std_msgs::Float64>(
         "set_hfov", 1,
@@ -351,6 +363,7 @@ void GazeboRosCameraUtils::LoadThread()
         ros::VoidPtr(), &this->camera_queue_);
   this->cameraHFOVSubscriber_ = this->rosnode_->subscribe(zoom_so);
 
+  /* disabling fov and rate setting for each camera
   ros::SubscribeOptions rate_so =
     ros::SubscribeOptions::create<std_msgs::Float64>(
         "set_update_rate", 1,
@@ -391,8 +404,22 @@ void GazeboRosCameraUtils::TriggerCameraInternal(
 // Set Horizontal Field of View
 void GazeboRosCameraUtils::SetHFOV(const std_msgs::Float64::ConstPtr& hfov)
 {
+  //std::cout << "Function set hfov called" << std::endl;
 #if GAZEBO_MAJOR_VERSION >= 7
-  this->camera_->SetHFOV(ignition::math::Angle(hfov->data));
+  if (this->initialized_)
+  {
+    const ignition::math::Angle &angle_ = hfov->data;
+    this->camera_->sdf->GetElement("horizontal_fov")->Set(angle_.Radian());
+    if (this->camera_->viewport){
+      double ratio = static_cast<double>(this->camera_->viewport->getActualWidth()) /
+        static_cast<double>(this->camera_->viewport->getActualHeight());
+      double hfov_ = this->camera_->HFOV().Radian();
+      double vfov_ = 2.0 * atan(tan(hfov_ / 2.0) / ratio);
+
+      this->camera_->camera->setAspectRatio(ratio);
+      this->camera_->camera->setFOVy(Ogre::Radian(this->camera_->LimitFOV(vfov_)));
+    }
+  }
 #else
   this->camera_->SetHFOV(gazebo::math::Angle(hfov->data));
 #endif
@@ -512,12 +539,14 @@ void GazeboRosCameraUtils::Init()
   if (this->cy_ == 0)
     this->cy_ = (static_cast<double>(this->height_) + 1.0) /2.0;
 
-
+  
   double hfov = this->camera_->HFOV().Radian();
-  double computed_focal_length =
-    (static_cast<double>(this->width_)) /
+  std::cout << "hfov: " << hfov << std::endl;
+  this->focal_length_ = (static_cast<double>(this->width_)) /
     (2.0 * tan(hfov / 2.0));
-
+  std::cout << "focal_length: " << this->focal_length_ << std::endl;
+  
+/*
   if (this->focal_length_ == 0)
   {
     this->focal_length_ = computed_focal_length;
@@ -538,7 +567,7 @@ void GazeboRosCameraUtils::Init()
                 computed_focal_length);
     }
   }
-
+*/
   // fill CameraInfo
   sensor_msgs::CameraInfo camera_info_msg;
 
