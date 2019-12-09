@@ -37,7 +37,7 @@ namespace gazebo
   {
 
     parent_ = parent;
-
+    
     /* Parse parameters */
 
     robot_namespace_ = "";
@@ -88,7 +88,7 @@ namespace gazebo
       odometry_frame_ = sdf->GetElement("odometryFrame")->Get<std::string>();
     }
 
-    robot_base_frame_ = "base_footprint";
+    robot_base_frame_ = "base_link";
     if (!sdf->HasElement("robotBaseFrame"))
     {
       ROS_WARN_NAMED("planar_move", "PlanarMovePlugin (ns = %s) missing <robotBaseFrame>, "
@@ -99,6 +99,20 @@ namespace gazebo
     {
       robot_base_frame_ = sdf->GetElement("robotBaseFrame")->Get<std::string>();
     }
+
+
+    robot_camera_frame_ = "camera_link";
+    if (!sdf->HasElement("robotCameraFrame"))
+    {
+      ROS_WARN_NAMED("planar_move", "PlanarMovePlugin (ns = %s) missing <robotCameraFrame>, "
+          "defaults to \"%s\"",
+          robot_namespace_.c_str(), robot_camera_frame_.c_str());
+    }
+    else
+    {
+      robot_camera_frame_ = sdf->GetElement("robotCameraFrame")->Get<std::string>();
+    }
+
 
     odometry_rate_ = 20.0;
     if (!sdf->HasElement("odometryRate"))
@@ -126,7 +140,8 @@ namespace gazebo
     y_ = 0;
     rot_ = 0;
     alive_ = true;
-
+    base_link = parent_->GetLink(robot_base_frame_);
+    camera_link = parent_->GetLink(robot_camera_frame_);
     // Ensure that ROS has been initialized and subscribe to cmd_vel
     if (!ros::isInitialized())
     {
@@ -179,6 +194,25 @@ namespace gazebo
           y_ * cosf(yaw) + x_ * sinf(yaw),
           0));
     parent_->SetAngularVel(ignition::math::Vector3d(0, 0, rot_));
+#if GAZEBO_MAJOR_VERSION >= 8
+    ignition::math::Pose3d pose_camera = camera_link->WorldPose();
+#else
+    ignition::math::Pose3d pose_camera = camera_link->GetWorldPose().Ign();
+#endif
+    float yaw_camera = pose_camera.Rot().Yaw();
+    if (yaw_camera>=0 and yaw_camera<M_PI/2){
+      camera_link->SetAngularVel(ignition::math::Vector3d(tilt_, -tilt_, pan_+rot_));
+    } 
+    else if (yaw_camera>=M_PI/2 and yaw_camera<M_PI){
+      camera_link->SetAngularVel(ignition::math::Vector3d(tilt_, tilt_, pan_+rot_));
+    }
+    else if (yaw_camera>=-M_PI/2 and yaw_camera<0){
+      camera_link->SetAngularVel(ignition::math::Vector3d(-tilt_, -tilt_, pan_+rot_));
+    }
+    else {
+      camera_link->SetAngularVel(ignition::math::Vector3d(-tilt_, tilt_, pan_+rot_));
+    }
+
     if (odometry_rate_ > 0.0) {
 #if GAZEBO_MAJOR_VERSION >= 8
       common::Time current_time = parent_->GetWorld()->SimTime();
@@ -210,6 +244,8 @@ namespace gazebo
     x_ = cmd_msg->linear.x;
     y_ = cmd_msg->linear.y;
     rot_ = cmd_msg->angular.z;
+    pan_ = cmd_msg->angular.x;
+    tilt_ = cmd_msg->angular.y;
   }
 
   void GazeboRosPlanarMove::QueueThread()

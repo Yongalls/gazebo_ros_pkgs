@@ -59,6 +59,8 @@ namespace gazebo {
       void publishOdometry(double step_time);
 
       physics::ModelPtr parent_;
+      physics::LinkPtr camera_link;
+      physics::LinkPtr base_link;
       event::ConnectionPtr update_connection_;
 
       boost::shared_ptr<ros::NodeHandle> rosnode_;
@@ -75,6 +77,7 @@ namespace gazebo {
       std::string odometry_topic_;
       std::string odometry_frame_;
       std::string robot_base_frame_;
+      std::string robot_camera_frame_;
       double odometry_rate_;
 
       // Custom Callback Queue
@@ -88,6 +91,8 @@ namespace gazebo {
       double x_;
       double y_;
       double rot_;
+      double pan_;
+      double tilt_;
       bool alive_;
       common::Time last_odom_publish_time_;
       ignition::math::Pose3d last_odom_pose_;
