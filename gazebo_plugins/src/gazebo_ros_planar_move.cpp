@@ -113,7 +113,19 @@ namespace gazebo
       robot_camera_frame_ = sdf->GetElement("robotCameraFrame")->Get<std::string>();
     }
 
+    robot_camera_rotator_frame_ = "camera_rotator";
+    if (!sdf->HasElement("robotCameraRotatorFrame"))
+    {
+      ROS_WARN_NAMED("planar_move", "PlanarMovePlugin (ns = %s) missing <robotCameraRotatorFrame>, "
+          "defaults to \"%s\"",
+          robot_namespace_.c_str(), robot_camera_rotator_frame_.c_str());
+    }
+    else
+    {
+      robot_camera_rotator_frame_ = sdf->GetElement("robotCameraRotatorFrame")->Get<std::string>();
+    }
 
+   
     odometry_rate_ = 20.0;
     if (!sdf->HasElement("odometryRate"))
     {
@@ -139,9 +151,13 @@ namespace gazebo
     x_ = 0;
     y_ = 0;
     rot_ = 0;
+    pan_ = 0;
+    tilt_ = 0;
     alive_ = true;
     base_link = parent_->GetLink(robot_base_frame_);
     camera_link = parent_->GetLink(robot_camera_frame_);
+    camera_rotator = parent_->GetLink(robot_camera_rotator_frame_);
+    
     // Ensure that ROS has been initialized and subscribe to cmd_vel
     if (!ros::isInitialized())
     {
@@ -189,30 +205,35 @@ namespace gazebo
     ignition::math::Pose3d pose = parent_->GetWorldPose().Ign();
 #endif
     float yaw = pose.Rot().Yaw();
-    parent_->SetLinearVel(ignition::math::Vector3d(
-          x_ * cosf(yaw) - y_ * sinf(yaw),
-          y_ * cosf(yaw) + x_ * sinf(yaw),
+    float duty = 50.0;
+    base_link->AddForce(ignition::math::Vector3d(
+          duty*(x_ * cosf(yaw) - y_ * sinf(yaw)),
+          duty*(y_ * cosf(yaw) + x_ * sinf(yaw)),
           0));
-    parent_->SetAngularVel(ignition::math::Vector3d(0, 0, rot_));
+    base_link->AddTorque(ignition::math::Vector3d(0, 0, 20*rot_));
 #if GAZEBO_MAJOR_VERSION >= 8
     ignition::math::Pose3d pose_camera = camera_link->WorldPose();
 #else
     ignition::math::Pose3d pose_camera = camera_link->GetWorldPose().Ign();
 #endif
+    
     float yaw_camera = pose_camera.Rot().Yaw();
+    camera_rotator->AddTorque(ignition::math::Vector3d(0, 0, 0.02*pan_));
+    camera_link->AddTorque(ignition::math::Vector3d(0.02*tilt_*sinf(yaw_camera), -0.02*tilt_*cosf(yaw_camera), 0));
+    /*
     if (yaw_camera>=0 and yaw_camera<M_PI/2){
-      camera_link->SetAngularVel(ignition::math::Vector3d(tilt_, -tilt_, pan_+rot_));
+      camera_rotator->AddTorque(ignition::math::Vector3d(0, 0, 50 * pan_));
     } 
     else if (yaw_camera>=M_PI/2 and yaw_camera<M_PI){
-      camera_link->SetAngularVel(ignition::math::Vector3d(tilt_, tilt_, pan_+rot_));
+      camera_rotator->AddTorque(ignition::math::Vector3d(0, 0, pan_));
     }
     else if (yaw_camera>=-M_PI/2 and yaw_camera<0){
-      camera_link->SetAngularVel(ignition::math::Vector3d(-tilt_, -tilt_, pan_+rot_));
+      camera_rotator->AddTorque(ignition::math::Vector3d(0, 0, pan_));
     }
     else {
-      camera_link->SetAngularVel(ignition::math::Vector3d(-tilt_, tilt_, pan_+rot_));
+      camera_rotator->AddTorque(ignition::math::Vector3d(0, 0, pan_));
     }
-
+*/
     if (odometry_rate_ > 0.0) {
 #if GAZEBO_MAJOR_VERSION >= 8
       common::Time current_time = parent_->GetWorld()->SimTime();

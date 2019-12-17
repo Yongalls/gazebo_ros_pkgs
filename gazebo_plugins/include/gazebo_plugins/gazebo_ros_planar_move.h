@@ -61,6 +61,7 @@ namespace gazebo {
       physics::ModelPtr parent_;
       physics::LinkPtr camera_link;
       physics::LinkPtr base_link;
+      physics::LinkPtr camera_rotator;
       event::ConnectionPtr update_connection_;
 
       boost::shared_ptr<ros::NodeHandle> rosnode_;
@@ -78,6 +79,7 @@ namespace gazebo {
       std::string odometry_frame_;
       std::string robot_base_frame_;
       std::string robot_camera_frame_;
+      std::string robot_camera_rotator_frame_;
       double odometry_rate_;
 
       // Custom Callback Queue
